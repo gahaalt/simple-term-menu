@@ -1279,11 +1279,11 @@ class TerminalMenu:
                         key=self._search_key
                     )[:num_cols]
                 elif self._search_key is not None:
-                    search_hint = '(Press "{key}" to search)'.format(
+                    search_hint = 'Press "{key}" to search...'.format(
                         key=self._search_key
                     )[:num_cols]
                 else:
-                    search_hint = "(Press any letter key to search)"[:num_cols]
+                    search_hint = "Press any letter key to search..."[:num_cols]
                 self._tty_out.write(search_hint)
                 self._tty_out.write((num_cols - wcswidth(search_hint)) * " ")
             if self._search or self._show_search_hint:
