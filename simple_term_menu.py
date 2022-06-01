@@ -36,8 +36,9 @@ from typing import (
 try:
     import termios
 except ImportError as e:
-    raise NotImplementedError('"{}" is currently not supported.'.format(platform.system())) from e
-
+    raise NotImplementedError(
+        '"{}" is currently not supported.'.format(platform.system())
+    ) from e
 
 __author__ = "Ingo Meyer"
 __email__ = "i.meyer@fz-juelich.de"
@@ -45,7 +46,6 @@ __copyright__ = "Copyright © 2021 Forschungszentrum Jülich GmbH. All rights re
 __license__ = "MIT"
 __version_info__ = (1, 4, 1)
 __version__ = ".".join(map(str, __version_info__))
-
 
 DEFAULT_ACCEPT_KEYS = ("enter",)
 DEFAULT_CLEAR_MENU_ON_EXIT = True
@@ -115,13 +115,17 @@ def wcswidth(text: str) -> int:
     user_locale = get_locale()
     # First replace any null characters with the unicode replacement character (U+FFFD) since they cannot be passed
     # in a `c_wchar_p`
-    encoded_text = text.replace("\0", "\uFFFD").encode(encoding=user_locale, errors="replace")
+    encoded_text = text.replace("\0", "\uFFFD").encode(
+        encoding=user_locale, errors="replace"
+    )
     return wcswidth.libc.wcswidth(  # type: ignore
         ctypes.c_wchar_p(encoded_text.decode(encoding=user_locale)), len(encoded_text)
     )
 
 
-def static_variables(**variables: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def static_variables(
+    **variables: Any,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def decorator(f: Callable[..., Any]) -> Callable[..., Any]:
         for key, value in variables.items():
             setattr(f, key, value)
@@ -164,6 +168,7 @@ class TerminalMenu:
             self._matches = []  # type: List[Tuple[int, Match[str]]]
             self._search_regex = None  # type: Optional[Pattern[str]]
             self._change_callback = None  # type: Optional[Callable[[], None]]
+
             # Use the property setter since it has some more logic
             self.search_text = search_text
 
@@ -197,7 +202,10 @@ class TerminalMenu:
             self._search_regex = None
             while search_text and self._search_regex is None:
                 try:
-                    self._search_regex = re.compile(search_text, flags=re.IGNORECASE if not self._case_sensitive else 0)
+                    self._search_regex = re.compile(
+                        search_text,
+                        flags=re.IGNORECASE if not self._case_sensitive else 0,
+                    )
                 except re.error:
                     search_text = search_text[:-1]
             self._update_matches()
@@ -229,9 +237,15 @@ class TerminalMenu:
             return wcswidth(self._search_text) if self._search_text is not None else 0
 
     class Selection:
-        def __init__(self, num_menu_entries: int, preselected_indices: Optional[Iterable[int]] = None):
+        def __init__(
+            self,
+            num_menu_entries: int,
+            preselected_indices: Optional[Iterable[int]] = None,
+        ):
             self._num_menu_entries = num_menu_entries
-            self._selected_menu_indices = set(preselected_indices) if preselected_indices is not None else set()
+            self._selected_menu_indices = (
+                set(preselected_indices) if preselected_indices is not None else set()
+            )
 
         def clear(self) -> None:
             self._selected_menu_indices.clear()
@@ -289,20 +303,30 @@ class TerminalMenu:
 
         def update_view(self) -> None:
             if self._search and self._search.search_text != "":
-                self._displayed_index_to_menu_index = tuple(i for i, match_obj in self._search.matches)
+                self._displayed_index_to_menu_index = tuple(
+                    i for i, match_obj in self._search.matches
+                )
             else:
-                self._displayed_index_to_menu_index = tuple(range(len(self._menu_entries)))
+                self._displayed_index_to_menu_index = tuple(
+                    range(len(self._menu_entries))
+                )
             self._menu_index_to_displayed_index = {
                 menu_index: displayed_index
-                for displayed_index, menu_index in enumerate(self._displayed_index_to_menu_index)
+                for displayed_index, menu_index in enumerate(
+                    self._displayed_index_to_menu_index
+                )
             }
-            self._active_displayed_index = 0 if self._displayed_index_to_menu_index else None
+            self._active_displayed_index = (
+                0 if self._displayed_index_to_menu_index else None
+            )
             self._viewport.search_lines_count = self._search.occupied_lines_count
             self._viewport.keep_visible(self._active_displayed_index)
 
         def increment_active_index(self) -> None:
             if self._active_displayed_index is not None:
-                if self._active_displayed_index + 1 < len(self._displayed_index_to_menu_index):
+                if self._active_displayed_index + 1 < len(
+                    self._displayed_index_to_menu_index
+                ):
                     self._active_displayed_index += 1
                 elif self._cycle_cursor:
                     self._active_displayed_index = 0
@@ -316,7 +340,9 @@ class TerminalMenu:
                 if self._active_displayed_index > 0:
                     self._active_displayed_index -= 1
                 elif self._cycle_cursor:
-                    self._active_displayed_index = len(self._displayed_index_to_menu_index) - 1
+                    self._active_displayed_index = (
+                        len(self._displayed_index_to_menu_index) - 1
+                    )
                 self._viewport.keep_visible(self._active_displayed_index)
 
             if self._active_displayed_index in self._skip_indices:
@@ -329,7 +355,9 @@ class TerminalMenu:
                 <= self._viewport.upper_index
             )
 
-        def convert_menu_index_to_displayed_index(self, menu_index: int) -> Optional[int]:
+        def convert_menu_index_to_displayed_index(
+            self, menu_index: int
+        ) -> Optional[int]:
             if menu_index in self._menu_index_to_displayed_index:
                 return self._menu_index_to_displayed_index[menu_index]
             else:
@@ -350,7 +378,9 @@ class TerminalMenu:
             self._selected_index = value
             self._active_displayed_index = [
                 displayed_index
-                for displayed_index, menu_index in enumerate(self._displayed_index_to_menu_index)
+                for displayed_index, menu_index in enumerate(
+                    self._displayed_index_to_menu_index
+                )
                 if menu_index == value
             ][0]
             self._viewport.keep_visible(self._active_displayed_index)
@@ -371,8 +401,14 @@ class TerminalMenu:
             return self._active_displayed_index is not None
 
         def __iter__(self) -> Iterator[Tuple[int, int, str]]:
-            for displayed_index, menu_index in enumerate(self._displayed_index_to_menu_index):
-                if self._viewport.lower_index <= displayed_index <= self._viewport.upper_index:
+            for displayed_index, menu_index in enumerate(
+                self._displayed_index_to_menu_index
+            ):
+                if (
+                    self._viewport.lower_index
+                    <= displayed_index
+                    <= self._viewport.upper_index
+                ):
                     yield (displayed_index, menu_index, self._menu_entries[menu_index])
 
     class Viewport:
@@ -403,7 +439,9 @@ class TerminalMenu:
                 - self._search_lines_count
             )
 
-        def keep_visible(self, cursor_position: Optional[int], refresh_terminal_size: bool = True) -> None:
+        def keep_visible(
+            self, cursor_position: Optional[int], refresh_terminal_size: bool = True
+        ) -> None:
             # Treat `cursor_position=None` like `cursor_position=0`
             if cursor_position is None:
                 cursor_position = 0
@@ -416,7 +454,10 @@ class TerminalMenu:
                 scroll_num = cursor_position - self._viewport[0]
             else:
                 scroll_num = cursor_position - self._viewport[1]
-            self._viewport = (self._viewport[0] + scroll_num, self._viewport[1] + scroll_num)
+            self._viewport = (
+                self._viewport[0] + scroll_num,
+                self._viewport[1] + scroll_num,
+            )
 
         def update_terminal_size(self) -> None:
             num_lines = self._calculate_num_lines()
@@ -549,8 +590,12 @@ class TerminalMenu:
         menu_highlight_style: Optional[Iterable[str]] = DEFAULT_MENU_HIGHLIGHT_STYLE,
         multi_select: bool = DEFAULT_MULTI_SELECT,
         multi_select_cursor: str = DEFAULT_MULTI_SELECT_CURSOR,
-        multi_select_cursor_brackets_style: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_CURSOR_BRACKETS_STYLE,
-        multi_select_cursor_style: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_CURSOR_STYLE,
+        multi_select_cursor_brackets_style: Optional[
+            Iterable[str]
+        ] = DEFAULT_MULTI_SELECT_CURSOR_BRACKETS_STYLE,
+        multi_select_cursor_style: Optional[
+            Iterable[str]
+        ] = DEFAULT_MULTI_SELECT_CURSOR_STYLE,
         multi_select_empty_ok: bool = False,
         multi_select_keys: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_KEYS,
         multi_select_select_on_accept: bool = DEFAULT_MULTI_SELECT_SELECT_ON_ACCEPT,
@@ -560,10 +605,16 @@ class TerminalMenu:
         preview_size: float = DEFAULT_PREVIEW_SIZE,
         preview_title: str = DEFAULT_PREVIEW_TITLE,
         search_case_sensitive: bool = DEFAULT_SEARCH_CASE_SENSITIVE,
-        search_highlight_style: Optional[Iterable[str]] = DEFAULT_SEARCH_HIGHLIGHT_STYLE,
+        search_highlight_style: Optional[
+            Iterable[str]
+        ] = DEFAULT_SEARCH_HIGHLIGHT_STYLE,
         search_key: Optional[str] = DEFAULT_SEARCH_KEY,
-        shortcut_brackets_highlight_style: Optional[Iterable[str]] = DEFAULT_SHORTCUT_BRACKETS_HIGHLIGHT_STYLE,
-        shortcut_key_highlight_style: Optional[Iterable[str]] = DEFAULT_SHORTCUT_KEY_HIGHLIGHT_STYLE,
+        shortcut_brackets_highlight_style: Optional[
+            Iterable[str]
+        ] = DEFAULT_SHORTCUT_BRACKETS_HIGHLIGHT_STYLE,
+        shortcut_key_highlight_style: Optional[
+            Iterable[str]
+        ] = DEFAULT_SHORTCUT_KEY_HIGHLIGHT_STYLE,
         show_multi_select_hint: bool = DEFAULT_SHOW_MULTI_SELECT_HINT,
         show_multi_select_hint_text: Optional[str] = None,
         show_search_hint: bool = DEFAULT_SHOW_SEARCH_HINT,
@@ -574,14 +625,16 @@ class TerminalMenu:
         status_bar: Optional[Union[str, Iterable[str], Callable[[str], str]]] = None,
         status_bar_below_preview: bool = DEFAULT_STATUS_BAR_BELOW_PREVIEW,
         status_bar_style: Optional[Iterable[str]] = DEFAULT_STATUS_BAR_STYLE,
-        title: Optional[Union[str, Iterable[str]]] = None
+        title: Optional[Union[str, Iterable[str]]] = None,
     ):
         def extract_shortcuts_menu_entries_and_preview_arguments(
             entries: Iterable[str],
         ) -> Tuple[List[str], List[Optional[str]], List[Optional[str]], List[int]]:
             separator_pattern = re.compile(r"([^\\])\|")
             escaped_separator_pattern = re.compile(r"\\\|")
-            menu_entry_pattern = re.compile(r"^(?:\[(\S)\]\s*)?([^\x1F]+)(?:\x1F([^\x1F]*))?")
+            menu_entry_pattern = re.compile(
+                r"^(?:\[(\S)\]\s*)?([^\x1F]+)(?:\x1F([^\x1F]*))?"
+            )
             shortcut_keys = []  # type: List[Optional[str]]
             menu_entries = []  # type: List[str]
             preview_arguments = []  # type: List[Optional[str]]
@@ -594,7 +647,9 @@ class TerminalMenu:
                     preview_arguments.append(None)
                     skip_indices.append(idx)
                 else:
-                    unit_separated_entry = escaped_separator_pattern.sub("|", separator_pattern.sub("\\1\x1F", entry))
+                    unit_separated_entry = escaped_separator_pattern.sub(
+                        "|", separator_pattern.sub("\\1\x1F", entry)
+                    )
                     match_obj = menu_entry_pattern.match(unit_separated_entry)
                     # this is none in case the entry was an emtpy string which
                     # will be interpreted as a separator
@@ -630,9 +685,13 @@ class TerminalMenu:
                     try:
                         preselected_indices.update(menu_entry_to_indices[item])
                     except KeyError as e:
-                        raise UnknownMenuEntryError('Pre-selection "{}" is not a valid menu entry.'.format(item)) from e
+                        raise UnknownMenuEntryError(
+                            'Pre-selection "{}" is not a valid menu entry.'.format(item)
+                        ) from e
                 else:
-                    raise ValueError('"preselected_entries" must either contain integers or strings.')
+                    raise ValueError(
+                        '"preselected_entries" must either contain integers or strings.'
+                    )
             return preselected_indices
 
         def setup_title_or_status_bar_lines(
@@ -670,37 +729,55 @@ class TerminalMenu:
         self._multi_select_empty_ok = multi_select_empty_ok
         self._exit_on_shortcut = exit_on_shortcut
         self._menu_cursor = menu_cursor if menu_cursor is not None else ""
-        self._menu_cursor_style = tuple(menu_cursor_style) if menu_cursor_style is not None else ()
-        self._menu_highlight_style = tuple(menu_highlight_style) if menu_highlight_style is not None else ()
+        self._menu_cursor_style = (
+            tuple(menu_cursor_style) if menu_cursor_style is not None else ()
+        )
+        self._menu_highlight_style = (
+            tuple(menu_highlight_style) if menu_highlight_style is not None else ()
+        )
         self._multi_select = multi_select
         self._multi_select_cursor = multi_select_cursor
         self._multi_select_cursor_brackets_style = (
-            tuple(multi_select_cursor_brackets_style) if multi_select_cursor_brackets_style is not None else ()
+            tuple(multi_select_cursor_brackets_style)
+            if multi_select_cursor_brackets_style is not None
+            else ()
         )
         self._multi_select_cursor_style = (
-            tuple(multi_select_cursor_style) if multi_select_cursor_style is not None else ()
+            tuple(multi_select_cursor_style)
+            if multi_select_cursor_style is not None
+            else ()
         )
-        self._multi_select_keys = tuple(multi_select_keys) if multi_select_keys is not None else ()
+        self._multi_select_keys = (
+            tuple(multi_select_keys) if multi_select_keys is not None else ()
+        )
         self._multi_select_select_on_accept = multi_select_select_on_accept
         if preselected_entries and not self._multi_select:
             raise InvalidParameterCombinationError(
                 "Multi-select mode must be enabled when preselected entries are given."
             )
         self._preselected_indices = (
-            convert_preselected_entries_to_indices(preselected_entries) if preselected_entries is not None else None
+            convert_preselected_entries_to_indices(preselected_entries)
+            if preselected_entries is not None
+            else None
         )
         self._preview_border = preview_border
         self._preview_command = preview_command
         self._preview_size = preview_size
         self._preview_title = preview_title
         self._search_case_sensitive = search_case_sensitive
-        self._search_highlight_style = tuple(search_highlight_style) if search_highlight_style is not None else ()
+        self._search_highlight_style = (
+            tuple(search_highlight_style) if search_highlight_style is not None else ()
+        )
         self._search_key = search_key
         self._shortcut_brackets_highlight_style = (
-            tuple(shortcut_brackets_highlight_style) if shortcut_brackets_highlight_style is not None else ()
+            tuple(shortcut_brackets_highlight_style)
+            if shortcut_brackets_highlight_style is not None
+            else ()
         )
         self._shortcut_key_highlight_style = (
-            tuple(shortcut_key_highlight_style) if shortcut_key_highlight_style is not None else ()
+            tuple(shortcut_key_highlight_style)
+            if shortcut_key_highlight_style is not None
+            else ()
         )
         self._show_search_hint = show_search_hint
         self._show_search_hint_text = show_search_hint_text
@@ -719,7 +796,9 @@ class TerminalMenu:
                 False,
             )
         self._status_bar_below_preview = status_bar_below_preview
-        self._status_bar_style = tuple(status_bar_style) if status_bar_style is not None else ()
+        self._status_bar_style = (
+            tuple(status_bar_style) if status_bar_style is not None else ()
+        )
         self._title_lines = setup_title_or_status_bar_lines(
             title,
             show_shortcut_hints and not show_shortcut_hints_in_status_bar,
@@ -740,7 +819,9 @@ class TerminalMenu:
             case_senitive=self._search_case_sensitive,
             show_search_hint=self._show_search_hint,
         )
-        self._selection = self.Selection(len(self._menu_entries), self._preselected_indices)
+        self._selection = self.Selection(
+            len(self._menu_entries), self._preselected_indices
+        )
         self._viewport = self.Viewport(
             len(self._menu_entries),
             len(self._title_lines),
@@ -749,7 +830,12 @@ class TerminalMenu:
             0,
         )
         self._view = self.View(
-            self._menu_entries, self._search, self._selection, self._viewport, self._cycle_cursor, self._skip_indices
+            self._menu_entries,
+            self._search,
+            self._selection,
+            self._viewport,
+            self._cycle_cursor,
+            self._skip_indices,
         )
         if cursor_index and 0 < cursor_index < len(self._menu_entries):
             self._view.active_menu_index = cursor_index
@@ -807,7 +893,9 @@ class TerminalMenu:
     def _init_backspace_control_character(self) -> None:
         try:
             with open("/dev/tty", "r") as tty:
-                stty_output = subprocess.check_output(["stty", "-a"], universal_newlines=True, stdin=tty)
+                stty_output = subprocess.check_output(
+                    ["stty", "-a"], universal_newlines=True, stdin=tty
+                )
             name_to_keycode_regex = re.compile(r"^\s*(\S+)\s*=\s*\^(\S+)\s*$")
             for field in stty_output.split(";"):
                 match_obj = name_to_keycode_regex.match(field)
@@ -816,7 +904,9 @@ class TerminalMenu:
                 name, ctrl_code = match_obj.group(1), match_obj.group(2)
                 if name != "erase":
                     continue
-                self._name_to_control_character["backspace"] = self._get_keycode_for_key("ctrl-" + ctrl_code)
+                self._name_to_control_character[
+                    "backspace"
+                ] = self._get_keycode_for_key("ctrl-" + ctrl_code)
                 return
         except subprocess.CalledProcessError:
             pass
@@ -826,7 +916,10 @@ class TerminalMenu:
     @classmethod
     def _add_missing_control_characters_for_keys(cls, keys: Iterable[str]) -> None:
         for key in keys:
-            if key not in cls._name_to_control_character and key not in string.ascii_letters:
+            if (
+                key not in cls._name_to_control_character
+                and key not in string.ascii_letters
+            ):
                 cls._name_to_control_character[key] = cls._get_keycode_for_key(key)
 
     @classmethod
@@ -836,13 +929,15 @@ class TerminalMenu:
         supported_colors = int(cls._query_terminfo_database("colors"))
         cls._codename_to_terminal_code = {
             codename: cls._query_terminfo_database(codename)
-            if not (codename.startswith("bg_") or codename.startswith("fg_")) or supported_colors >= 8
+            if not (codename.startswith("bg_") or codename.startswith("fg_"))
+               or supported_colors >= 8
             else ""
             for codename in cls._codenames
         }
         cls._codename_to_terminal_code.update(cls._name_to_control_character)
         cls._terminal_code_to_codename = {
-            terminal_code: codename for codename, terminal_code in cls._codename_to_terminal_code.items()
+            terminal_code: codename
+            for codename, terminal_code in cls._codename_to_terminal_code.items()
         }
 
     @classmethod
@@ -852,7 +947,9 @@ class TerminalMenu:
         else:
             capname = codename
         try:
-            return subprocess.check_output(["tput"] + capname.split(), universal_newlines=True)
+            return subprocess.check_output(
+                ["tput"] + capname.split(), universal_newlines=True
+            )
         except subprocess.CalledProcessError as e:
             # The return code 1 indicates a missing terminal capability
             if e.returncode == 1:
@@ -884,23 +981,38 @@ class TerminalMenu:
                     invalid_styles.append(style)
         if invalid_styles:
             if len(invalid_styles) == 1:
-                raise InvalidStyleError('The style "{}" does not exist.'.format(invalid_styles[0]))
+                raise InvalidStyleError(
+                    'The style "{}" does not exist.'.format(invalid_styles[0])
+                )
             else:
-                raise InvalidStyleError('The styles ("{}") do not exist.'.format('", "'.join(invalid_styles)))
+                raise InvalidStyleError(
+                    'The styles ("{}") do not exist.'.format(
+                        '", "'.join(invalid_styles)
+                    )
+                )
 
     def _init_term(self) -> None:
         # pylint: disable=unsubscriptable-object
         assert self._codename_to_terminal_code is not None
         self._tty_in = open("/dev/tty", "r", encoding=self._user_locale)
-        self._tty_out = open("/dev/tty", "w", encoding=self._user_locale, errors="replace")
+        self._tty_out = open(
+            "/dev/tty", "w", encoding=self._user_locale, errors="replace"
+        )
         self._old_term = termios.tcgetattr(self._tty_in.fileno())
         self._new_term = termios.tcgetattr(self._tty_in.fileno())
         # set the terminal to: unbuffered, no echo and no <CR> to <NL> translation (so <enter> sends <CR> instead of
         # <NL, this is necessary to distinguish between <enter> and <Ctrl-j> since <Ctrl-j> generates <NL>)
-        self._new_term[3] = cast(int, self._new_term[3]) & ~termios.ICANON & ~termios.ECHO & ~termios.ICRNL
+        self._new_term[3] = (
+            cast(int, self._new_term[3])
+            & ~termios.ICANON
+            & ~termios.ECHO
+            & ~termios.ICRNL
+        )
         self._new_term[0] = cast(int, self._new_term[0]) & ~termios.ICRNL
         termios.tcsetattr(
-            self._tty_in.fileno(), termios.TCSAFLUSH, cast(List[Union[int, List[Union[bytes, int]]]], self._new_term)
+            self._tty_in.fileno(),
+            termios.TCSAFLUSH,
+            cast(List[Union[int, List[Union[bytes, int]]]], self._new_term),
         )
         # Enter terminal application mode to get expected escape codes for arrow keys
         self._tty_out.write(self._codename_to_terminal_code["enter_application_mode"])
@@ -915,7 +1027,9 @@ class TerminalMenu:
         assert self._tty_out is not None
         assert self._old_term is not None
         termios.tcsetattr(
-            self._tty_out.fileno(), termios.TCSAFLUSH, cast(List[Union[int, List[Union[bytes, int]]]], self._old_term)
+            self._tty_out.fileno(),
+            termios.TCSAFLUSH,
+            cast(List[Union[int, List[Union[bytes, int]]]], self._old_term),
         )
         self._tty_out.write(self._codename_to_terminal_code["cursor_visible"])
         self._tty_out.write(self._codename_to_terminal_code["exit_application_mode"])
@@ -932,7 +1046,8 @@ class TerminalMenu:
                         " ": "space",
                     }
                     keys_string = ", ".join(
-                        "<" + string_to_key.get(accept_key, accept_key) + ">" for accept_key in keys
+                        "<" + string_to_key.get(accept_key, accept_key) + ">"
+                        for accept_key in keys
                     )
                     return keys_string
 
@@ -940,7 +1055,8 @@ class TerminalMenu:
                 multi_select_keys_string = get_string_from_keys(self._multi_select_keys)
                 if self._show_multi_select_hint_text is not None:
                     return self._show_multi_select_hint_text.format(
-                        multi_select_keys=multi_select_keys_string, accept_keys=accept_keys_string
+                        multi_select_keys=multi_select_keys_string,
+                        accept_keys=accept_keys_string,
                     )
                 else:
                     return "Press {} for multi-selection and {} to {}accept".format(
@@ -949,12 +1065,24 @@ class TerminalMenu:
                         "select and " if self._multi_select_select_on_accept else "",
                     )
 
-            if self._status_bar_func is not None and self._view.active_menu_index is not None:
+            if (
+                self._status_bar_func is not None
+                and self._view.active_menu_index is not None
+            ):
                 status_bar_lines = tuple(
-                    self._status_bar_func(self._menu_entries[self._view.active_menu_index]).strip().split("\n")
+                    self._status_bar_func(
+                        self._menu_entries[self._view.active_menu_index]
+                    )
+                        .strip()
+                        .split("\n")
                 )
-                if self._show_shortcut_hints and self._show_shortcut_hints_in_status_bar:
-                    shortcut_hints_line = self._get_shortcut_hints_line(self._menu_entries, self._shortcut_keys, False)
+                if (
+                    self._show_shortcut_hints
+                    and self._show_shortcut_hints_in_status_bar
+                ):
+                    shortcut_hints_line = self._get_shortcut_hints_line(
+                        self._menu_entries, self._shortcut_keys, False
+                    )
                     if shortcut_hints_line is not None:
                         status_bar_lines += (shortcut_hints_line,)
             elif self._status_bar_lines is not None:
@@ -966,7 +1094,9 @@ class TerminalMenu:
             return status_bar_lines
 
         def apply_style(
-            style_iterable: Optional[Iterable[str]] = None, reset: bool = True, file: Optional[TextIO] = None
+            style_iterable: Optional[Iterable[str]] = None,
+            reset: bool = True,
+            file: Optional[TextIO] = None,
         ) -> None:
             # pylint: disable=unsubscriptable-object
             assert self._codename_to_terminal_code is not None
@@ -990,10 +1120,14 @@ class TerminalMenu:
             num_cols = self._num_cols()
             if self._title_lines:
                 self._tty_out.write(
-                    len(self._title_lines) * self._codename_to_terminal_code["cursor_up"]
+                    len(self._title_lines)
+                    * self._codename_to_terminal_code["cursor_up"]
                     + "\r"
                     + "\n".join(
-                        (title_line[:num_cols] + (num_cols - wcswidth(title_line)) * " ")
+                        (
+                            title_line[:num_cols]
+                            + (num_cols - wcswidth(title_line)) * " "
+                        )
                         for title_line in self._title_lines
                     )
                     + "\n"
@@ -1002,7 +1136,9 @@ class TerminalMenu:
             displayed_index = -1
             for displayed_index, menu_index, menu_entry in self._view:
                 current_shortcut_key = self._shortcut_keys[menu_index]
-                self._tty_out.write(all_cursors_width * self._codename_to_terminal_code["cursor_right"])
+                self._tty_out.write(
+                    all_cursors_width * self._codename_to_terminal_code["cursor_right"]
+                )
                 if self._shortcuts_defined:
                     if current_shortcut_key is not None:
                         apply_style(self._shortcut_brackets_highlight_style)
@@ -1020,33 +1156,62 @@ class TerminalMenu:
                 if self._search and self._search.search_text != "":
                     match_obj = self._search.matches[displayed_index][1]
                     self._tty_out.write(
-                        menu_entry[: min(match_obj.start(), num_cols - all_cursors_width - shortcut_string_len)]
+                        menu_entry[
+                        : min(
+                            match_obj.start(),
+                            num_cols - all_cursors_width - shortcut_string_len,
+                        )
+                        ]
                     )
                     apply_style(self._search_highlight_style)
                     self._tty_out.write(
                         menu_entry[
-                            match_obj.start() : min(match_obj.end(), num_cols - all_cursors_width - shortcut_string_len)
+                        match_obj.start(): min(
+                            match_obj.end(),
+                            num_cols - all_cursors_width - shortcut_string_len,
+                        )
                         ]
                     )
                     apply_style()
                     if menu_index == self._view.active_menu_index:
                         apply_style(self._menu_highlight_style)
                     self._tty_out.write(
-                        menu_entry[match_obj.end() : num_cols - all_cursors_width - shortcut_string_len]
+                        menu_entry[
+                        match_obj.end(): num_cols
+                                         - all_cursors_width
+                                         - shortcut_string_len
+                        ]
                     )
                 else:
-                    self._tty_out.write(menu_entry[: num_cols - all_cursors_width - shortcut_string_len])
+                    self._tty_out.write(
+                        menu_entry[: num_cols - all_cursors_width - shortcut_string_len]
+                    )
                 if menu_index == self._view.active_menu_index:
                     apply_style()
-                self._tty_out.write((num_cols - wcswidth(menu_entry) - all_cursors_width - shortcut_string_len) * " ")
+                self._tty_out.write(
+                    (
+                        num_cols
+                        - wcswidth(menu_entry)
+                        - all_cursors_width
+                        - shortcut_string_len
+                    )
+                    * " "
+                )
                 if displayed_index < self._viewport.upper_index:
                     self._tty_out.write("\n")
             empty_menu_lines = self._viewport.upper_index - displayed_index
             self._tty_out.write(
-                max(0, empty_menu_lines - 1) * (num_cols * " " + "\n") + min(1, empty_menu_lines) * (num_cols * " ")
+                max(0, empty_menu_lines - 1) * (num_cols * " " + "\n")
+                + min(1, empty_menu_lines) * (num_cols * " ")
             )
-            self._tty_out.write("\r" + (self._viewport.size - 1) * self._codename_to_terminal_code["cursor_up"])
-            current_menu_block_displayed_height += self._viewport.size - 1  # sum all written lines
+            self._tty_out.write(
+                "\r"
+                + (self._viewport.size - 1)
+                * self._codename_to_terminal_code["cursor_up"]
+            )
+            current_menu_block_displayed_height += (
+                self._viewport.size - 1
+            )  # sum all written lines
             return current_menu_block_displayed_height
 
         def print_search_line(current_menu_height: int) -> int:
@@ -1056,50 +1221,74 @@ class TerminalMenu:
             current_menu_block_displayed_height = 0
             num_cols = self._num_cols()
             if self._search or self._show_search_hint:
-                self._tty_out.write((current_menu_height + 1) * self._codename_to_terminal_code["cursor_down"])
+                self._tty_out.write(
+                    (current_menu_height + 1)
+                    * self._codename_to_terminal_code["cursor_down"]
+                )
             if self._search:
                 assert self._search.search_text is not None
                 self._tty_out.write(
                     (
-                        (self._search_key if self._search_key is not None else DEFAULT_SEARCH_KEY)
+                        (
+                            self._search_key
+                            if self._search_key is not None
+                            else DEFAULT_SEARCH_KEY
+                        )
                         + self._search.search_text
                     )[:num_cols]
                 )
                 self._tty_out.write((num_cols - len(self._search) - 1) * " ")
             elif self._show_search_hint:
                 if self._show_search_hint_text is not None:
-                    search_hint = self._show_search_hint_text.format(key=self._search_key)[:num_cols]
+                    search_hint = self._show_search_hint_text.format(
+                        key=self._search_key
+                    )[:num_cols]
                 elif self._search_key is not None:
-                    search_hint = '(Press "{key}" to search)'.format(key=self._search_key)[:num_cols]
+                    search_hint = '(Press "{key}" to search)'.format(
+                        key=self._search_key
+                    )[:num_cols]
                 else:
                     search_hint = "(Press any letter key to search)"[:num_cols]
                 self._tty_out.write(search_hint)
                 self._tty_out.write((num_cols - wcswidth(search_hint)) * " ")
             if self._search or self._show_search_hint:
-                self._tty_out.write("\r" + (current_menu_height + 1) * self._codename_to_terminal_code["cursor_up"])
+                self._tty_out.write(
+                    "\r"
+                    + (current_menu_height + 1)
+                    * self._codename_to_terminal_code["cursor_up"]
+                )
                 current_menu_block_displayed_height = 1
             return current_menu_block_displayed_height
 
-        def print_status_bar(current_menu_height: int, status_bar_lines: Tuple[str, ...]) -> int:
+        def print_status_bar(
+            current_menu_height: int, status_bar_lines: Tuple[str, ...]
+        ) -> int:
             # pylint: disable=unsubscriptable-object
             assert self._codename_to_terminal_code is not None
             assert self._tty_out is not None
             current_menu_block_displayed_height = 0  # sum all written lines
             num_cols = self._num_cols()
             if status_bar_lines:
-                self._tty_out.write((current_menu_height + 1) * self._codename_to_terminal_code["cursor_down"])
+                self._tty_out.write(
+                    (current_menu_height + 1)
+                    * self._codename_to_terminal_code["cursor_down"]
+                )
                 apply_style(self._status_bar_style)
                 self._tty_out.write(
                     "\r"
                     + "\n".join(
-                        (status_bar_line[:num_cols] + (num_cols - wcswidth(status_bar_line)) * " ")
+                        (
+                            status_bar_line[:num_cols]
+                            + (num_cols - wcswidth(status_bar_line)) * " "
+                        )
                         for status_bar_line in status_bar_lines
                     )
                     + "\r"
                 )
                 apply_style()
                 self._tty_out.write(
-                    (current_menu_height + len(status_bar_lines)) * self._codename_to_terminal_code["cursor_up"]
+                    (current_menu_height + len(status_bar_lines))
+                    * self._codename_to_terminal_code["cursor_up"]
                 )
                 current_menu_block_displayed_height += len(status_bar_lines)
             return current_menu_block_displayed_height
@@ -1125,22 +1314,35 @@ class TerminalMenu:
                 if isinstance(self._preview_command, str):
                     try:
                         preview_process = subprocess.Popen(
-                            [cmd_part.format(preview_argument) for cmd_part in shlex.split(self._preview_command)],
+                            [
+                                cmd_part.format(preview_argument)
+                                for cmd_part in shlex.split(self._preview_command)
+                            ],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                         )
                         assert preview_process.stdout is not None
                         preview_string = (
-                            io.TextIOWrapper(preview_process.stdout, encoding=self._user_locale, errors="replace")
-                            .read()
-                            .strip()
+                            io.TextIOWrapper(
+                                preview_process.stdout,
+                                encoding=self._user_locale,
+                                errors="replace",
+                            )
+                                .read()
+                                .strip()
                         )
                     except subprocess.CalledProcessError as e:
                         raise PreviewCommandFailedError(
-                            e.stderr.decode(encoding=self._user_locale, errors="replace").strip()
+                            e.stderr.decode(
+                                encoding=self._user_locale, errors="replace"
+                            ).strip()
                         ) from e
                 else:
-                    preview_string = self._preview_command(preview_argument) if preview_argument is not None else ""
+                    preview_string = (
+                        self._preview_command(preview_argument)
+                        if preview_argument is not None
+                        else ""
+                    )
                 return preview_string
 
             @static_variables(
@@ -1160,9 +1362,13 @@ class TerminalMenu:
 
             @static_variables(
                 regular_text_regex=re.compile(r"([^\x1B]+)(.*)"),
-                ansi_escape_regex=re.compile(r"(\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))(.*)"),
+                ansi_escape_regex=re.compile(
+                    r"(\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))(.*)"
+                ),
             )
-            def limit_string_with_escape_codes(string: str, max_len: int) -> Tuple[str, int]:
+            def limit_string_with_escape_codes(
+                string: str, max_len: int
+            ) -> Tuple[str, int]:
                 if max_len <= 0:
                     return "", 0
                 string_parts = []
@@ -1201,24 +1407,36 @@ class TerminalMenu:
                 if preview_string is not None:
                     preview_string = strip_ansi_codes_except_styling(preview_string)
             except PreviewCommandFailedError as e:
-                preview_string = "The preview command failed with error message:\n\n" + str(e)
-            self._tty_out.write(current_menu_height * self._codename_to_terminal_code["cursor_down"])
+                preview_string = (
+                    "The preview command failed with error message:\n\n" + str(e)
+                )
+            self._tty_out.write(
+                current_menu_height * self._codename_to_terminal_code["cursor_down"]
+            )
             if preview_string is not None:
-                self._tty_out.write(self._codename_to_terminal_code["cursor_down"] + "\r")
+                self._tty_out.write(
+                    self._codename_to_terminal_code["cursor_down"] + "\r"
+                )
                 if self._preview_border:
                     self._tty_out.write(
                         (
                             BoxDrawingCharacters.upper_left
-                            + (2 * BoxDrawingCharacters.horizontal + " " + self._preview_title)[: num_cols - 3]
+                            + (
+                                  2 * BoxDrawingCharacters.horizontal
+                                  + " "
+                                  + self._preview_title
+                              )[: num_cols - 3]
                             + " "
-                            + (num_cols - len(self._preview_title) - 6) * BoxDrawingCharacters.horizontal
+                            + (num_cols - len(self._preview_title) - 6)
+                            * BoxDrawingCharacters.horizontal
                             + BoxDrawingCharacters.upper_right
                         )[:num_cols]
                         + "\n"
                     )
                 # `finditer` can be used as a generator version of `str.join`
                 for i, line in enumerate(
-                    match.group(0) for match in re.finditer(r"^.*$", preview_string, re.MULTILINE)
+                    match.group(0)
+                    for match in re.finditer(r"^.*$", preview_string, re.MULTILINE)
                 ):
                     if i >= preview_max_num_lines - (2 if self._preview_border else 0):
                         preview_num_lines = preview_max_num_lines
@@ -1228,11 +1446,25 @@ class TerminalMenu:
                     )
                     self._tty_out.write(
                         (
-                            ((BoxDrawingCharacters.vertical + " ") if self._preview_border else "")
+                            (
+                                (BoxDrawingCharacters.vertical + " ")
+                                if self._preview_border
+                                else ""
+                            )
                             + limited_line
                             + self._codename_to_terminal_code["reset_attributes"]
-                            + max(num_cols - limited_line_len - (3 if self._preview_border else 0), 0) * " "
-                            + (BoxDrawingCharacters.vertical if self._preview_border else "")
+                            + max(
+                            num_cols
+                            - limited_line_len
+                            - (3 if self._preview_border else 0),
+                            0,
+                        )
+                            * " "
+                            + (
+                                BoxDrawingCharacters.vertical
+                                if self._preview_border
+                                else ""
+                            )
                         )
                     )
                 else:
@@ -1241,16 +1473,17 @@ class TerminalMenu:
                     self._tty_out.write(
                         "\n"
                         + (
-                            BoxDrawingCharacters.lower_left
-                            + (num_cols - 2) * BoxDrawingCharacters.horizontal
-                            + BoxDrawingCharacters.lower_right
-                        )[:num_cols]
+                              BoxDrawingCharacters.lower_left
+                              + (num_cols - 2) * BoxDrawingCharacters.horizontal
+                              + BoxDrawingCharacters.lower_right
+                          )[:num_cols]
                     )
                 self._tty_out.write("\r")
             else:
                 preview_num_lines = 0
             self._tty_out.write(
-                (current_menu_height + preview_num_lines) * self._codename_to_terminal_code["cursor_up"]
+                (current_menu_height + preview_num_lines)
+                * self._codename_to_terminal_code["cursor_up"]
             )
             return preview_num_lines
 
@@ -1262,12 +1495,18 @@ class TerminalMenu:
                 self._previous_displayed_menu_height is not None
                 and self._previous_displayed_menu_height > displayed_menu_height
             ):
-                self._tty_out.write((displayed_menu_height + 1) * self._codename_to_terminal_code["cursor_down"])
+                self._tty_out.write(
+                    (displayed_menu_height + 1)
+                    * self._codename_to_terminal_code["cursor_down"]
+                )
                 self._tty_out.write(
                     (self._previous_displayed_menu_height - displayed_menu_height)
                     * self._codename_to_terminal_code["delete_line"]
                 )
-                self._tty_out.write((displayed_menu_height + 1) * self._codename_to_terminal_code["cursor_up"])
+                self._tty_out.write(
+                    (displayed_menu_height + 1)
+                    * self._codename_to_terminal_code["cursor_up"]
+                )
 
         def position_cursor() -> None:
             # pylint: disable=unsubscriptable-object
@@ -1277,7 +1516,9 @@ class TerminalMenu:
                 return
 
             cursor_width = wcswidth(self._menu_cursor)
-            for displayed_index in range(self._viewport.lower_index, self._viewport.upper_index + 1):
+            for displayed_index in range(
+                self._viewport.lower_index, self._viewport.upper_index + 1
+            ):
                 if displayed_index == self._view.active_displayed_index:
                     apply_style(self._menu_cursor_style)
                     self._tty_out.write(self._menu_cursor)
@@ -1287,7 +1528,9 @@ class TerminalMenu:
                 self._tty_out.write("\r")
                 if displayed_index < self._viewport.upper_index:
                     self._tty_out.write(self._codename_to_terminal_code["cursor_down"])
-            self._tty_out.write((self._viewport.size - 1) * self._codename_to_terminal_code["cursor_up"])
+            self._tty_out.write(
+                (self._viewport.size - 1) * self._codename_to_terminal_code["cursor_up"]
+            )
 
         def print_multi_select_column() -> None:
             # pylint: disable=unsubscriptable-object
@@ -1301,42 +1544,62 @@ class TerminalMenu:
                 bracket_style_escape_codes_io = io.StringIO()
                 multi_select_cursor_style_escape_codes_io = io.StringIO()
                 reset_codes_io = io.StringIO()
-                apply_style(self._multi_select_cursor_brackets_style, file=bracket_style_escape_codes_io)
-                apply_style(self._multi_select_cursor_style, file=multi_select_cursor_style_escape_codes_io)
+                apply_style(
+                    self._multi_select_cursor_brackets_style,
+                    file=bracket_style_escape_codes_io,
+                )
+                apply_style(
+                    self._multi_select_cursor_style,
+                    file=multi_select_cursor_style_escape_codes_io,
+                )
                 apply_style(file=reset_codes_io)
                 bracket_style_escape_codes = bracket_style_escape_codes_io.getvalue()
-                multi_select_cursor_style_escape_codes = multi_select_cursor_style_escape_codes_io.getvalue()
+                multi_select_cursor_style_escape_codes = (
+                    multi_select_cursor_style_escape_codes_io.getvalue()
+                )
                 reset_codes = reset_codes_io.getvalue()
 
                 cursor_with_brackets_only = re.sub(
-                    r"[^{}]".format(re.escape(bracket_characters)), " ", self._multi_select_cursor
+                    r"[^{}]".format(re.escape(bracket_characters)),
+                    " ",
+                    self._multi_select_cursor,
                 )
                 cursor_with_brackets_only_styled = re.sub(
                     r"[{}]+".format(re.escape(bracket_characters)),
-                    lambda match_obj: bracket_style_escape_codes + match_obj.group(0) + reset_codes,
+                    lambda match_obj: bracket_style_escape_codes
+                                      + match_obj.group(0)
+                                      + reset_codes,
                     cursor_with_brackets_only,
                 )
                 cursor_styled = re.sub(
-                    r"[{brackets}]+|[^{brackets}\s]+".format(brackets=re.escape(bracket_characters)),
+                    r"[{brackets}]+|[^{brackets}\s]+".format(
+                        brackets=re.escape(bracket_characters)
+                    ),
                     lambda match_obj: (
-                        bracket_style_escape_codes
-                        if match_obj.group(0)[0] in bracket_characters
-                        else multi_select_cursor_style_escape_codes
-                    )
-                    + match_obj.group(0)
-                    + reset_codes,
+                                          bracket_style_escape_codes
+                                          if match_obj.group(0)[0] in bracket_characters
+                                          else multi_select_cursor_style_escape_codes
+                                      )
+                                      + match_obj.group(0)
+                                      + reset_codes,
                     self._multi_select_cursor,
                 )
                 return cursor_styled, cursor_with_brackets_only_styled
 
             if not self._view:
                 return
-            checked_multi_select_cursor, unchecked_multi_select_cursor = prepare_multi_select_cursors()
+            (
+                checked_multi_select_cursor,
+                unchecked_multi_select_cursor,
+            ) = prepare_multi_select_cursors()
             cursor_width = wcswidth(self._menu_cursor)
             displayed_selected_indices = self._view.displayed_selected_indices
             displayed_index = 0
             for displayed_index, _, _ in self._view:
-                self._tty_out.write("\r" + cursor_width * self._codename_to_terminal_code["cursor_right"])
+                self._tty_out.write(
+                    "\r"
+                    + cursor_width * self._codename_to_terminal_code["cursor_right"]
+                )
                 if displayed_index in self._skip_indices:
                     self._tty_out.write("")
                 elif displayed_index in displayed_selected_indices:
@@ -1347,7 +1610,10 @@ class TerminalMenu:
                     self._tty_out.write(self._codename_to_terminal_code["cursor_down"])
             self._tty_out.write("\r")
             self._tty_out.write(
-                (displayed_index + (1 if displayed_index < self._viewport.upper_index else 0))
+                (
+                    displayed_index
+                    + (1 if displayed_index < self._viewport.upper_index else 0)
+                )
                 * self._codename_to_terminal_code["cursor_up"]
             )
 
@@ -1358,17 +1624,25 @@ class TerminalMenu:
         status_bar_lines = get_status_bar_lines()
         self._viewport.status_bar_lines_count = len(status_bar_lines)
         if self._preview_command is not None:
-            self._viewport.preview_lines_count = int(self._preview_size * self._num_lines())
+            self._viewport.preview_lines_count = int(
+                self._preview_size * self._num_lines()
+            )
             preview_max_num_lines = self._viewport.preview_lines_count
         self._viewport.keep_visible(self._view.active_displayed_index)
         displayed_menu_height += print_menu_entries()
         displayed_menu_height += print_search_line(displayed_menu_height)
         if not self._status_bar_below_preview:
-            displayed_menu_height += print_status_bar(displayed_menu_height, status_bar_lines)
+            displayed_menu_height += print_status_bar(
+                displayed_menu_height, status_bar_lines
+            )
         if self._preview_command is not None:
-            displayed_menu_height += print_preview(displayed_menu_height, preview_max_num_lines)
+            displayed_menu_height += print_preview(
+                displayed_menu_height, preview_max_num_lines
+            )
         if self._status_bar_below_preview:
-            displayed_menu_height += print_status_bar(displayed_menu_height, status_bar_lines)
+            displayed_menu_height += print_status_bar(
+                displayed_menu_height, status_bar_lines
+            )
         delete_old_menu_lines(displayed_menu_height)
         position_cursor()
         if self._multi_select:
@@ -1383,14 +1657,22 @@ class TerminalMenu:
         assert self._tty_out is not None
         if self._clear_menu_on_exit:
             if self._title_lines:
-                self._tty_out.write(len(self._title_lines) * self._codename_to_terminal_code["cursor_up"])
-                self._tty_out.write(len(self._title_lines) * self._codename_to_terminal_code["delete_line"])
+                self._tty_out.write(
+                    len(self._title_lines)
+                    * self._codename_to_terminal_code["cursor_up"]
+                )
+                self._tty_out.write(
+                    len(self._title_lines)
+                    * self._codename_to_terminal_code["delete_line"]
+                )
             self._tty_out.write(
-                (self._previous_displayed_menu_height + 1) * self._codename_to_terminal_code["delete_line"]
+                (self._previous_displayed_menu_height + 1)
+                * self._codename_to_terminal_code["delete_line"]
             )
         else:
             self._tty_out.write(
-                (self._previous_displayed_menu_height + 1) * self._codename_to_terminal_code["cursor_down"]
+                (self._previous_displayed_menu_height + 1)
+                * self._codename_to_terminal_code["cursor_down"]
             )
         self._tty_out.flush()
 
@@ -1428,7 +1710,9 @@ class TerminalMenu:
         def reset_signal_handling() -> None:
             signal.signal(signal.SIGWINCH, signal.SIG_DFL)
 
-        def remove_letter_keys(menu_action_to_keys: Dict[str, Set[Optional[str]]]) -> None:
+        def remove_letter_keys(
+            menu_action_to_keys: Dict[str, Set[Optional[str]]]
+        ) -> None:
             letter_keys = frozenset(string.ascii_lowercase) | frozenset(" ")
             for keys in menu_action_to_keys.values():
                 keys -= letter_keys
@@ -1444,7 +1728,9 @@ class TerminalMenu:
         assert self._tty_out is not None
         if self._title_lines:
             # `print_menu` expects the cursor on the first menu item -> reserve one line for the title
-            self._tty_out.write(len(self._title_lines) * self._codename_to_terminal_code["cursor_down"])
+            self._tty_out.write(
+                len(self._title_lines) * self._codename_to_terminal_code["cursor_down"]
+            )
         menu_was_interrupted = False
         try:
             init_signal_handling()
@@ -1465,7 +1751,11 @@ class TerminalMenu:
                     remove_letter_keys(current_menu_action_to_keys)
                 else:
                     next_key = next_key.lower()
-                if self._search_key is not None and not self._search and next_key in self._shortcut_keys:
+                if (
+                    self._search_key is not None
+                    and not self._search
+                    and next_key in self._shortcut_keys
+                ):
                     shortcut_menu_index = self._shortcut_keys.index(next_key)
                     if self._exit_on_shortcut:
                         self._selection.add(shortcut_menu_index)
@@ -1479,7 +1769,10 @@ class TerminalMenu:
                     self._view.decrement_active_index()
                 elif next_key in current_menu_action_to_keys["menu_down"]:
                     self._view.increment_active_index()
-                elif self._multi_select and next_key in current_menu_action_to_keys["multi_select"]:
+                elif (
+                    self._multi_select
+                    and next_key in current_menu_action_to_keys["multi_select"]
+                ):
                     if self._view.active_menu_index is not None:
                         self._selection.toggle(self._view.active_menu_index)
                 elif next_key in current_menu_action_to_keys["accept"]:
@@ -1511,7 +1804,8 @@ class TerminalMenu:
                         else:
                             self._search.search_text = None
                     elif wcswidth(next_key) >= 0 and not (
-                        next_key in current_menu_action_to_keys["search_start"] and self._search.search_text == ""
+                        next_key in current_menu_action_to_keys["search_start"]
+                        and self._search.search_text == ""
                     ):
                         # Only append `next_key` if it is a printable character and the first character is not the
                         # `search_start` key
@@ -1529,7 +1823,9 @@ class TerminalMenu:
                     self._chosen_menu_indices = chosen_menu_indices
                 else:
                     self._chosen_menu_index = chosen_menu_indices[0]
-        return self._chosen_menu_indices if self._multi_select else self._chosen_menu_index
+        return (
+            self._chosen_menu_indices if self._multi_select else self._chosen_menu_index
+        )
 
     @property
     def chosen_accept_key(self) -> Optional[str]:
@@ -1537,12 +1833,19 @@ class TerminalMenu:
 
     @property
     def chosen_menu_entry(self) -> Optional[str]:
-        return self._menu_entries[self._chosen_menu_index] if self._chosen_menu_index is not None else None
+        return (
+            self._menu_entries[self._chosen_menu_index]
+            if self._chosen_menu_index is not None
+            else None
+        )
 
     @property
     def chosen_menu_entries(self) -> Optional[Tuple[str, ...]]:
         return (
-            tuple(self._menu_entries[menu_index] for menu_index in self._chosen_menu_indices)
+            tuple(
+                self._menu_entries[menu_index]
+                for menu_index in self._chosen_menu_indices
+            )
             if self._chosen_menu_indices is not None
             else None
         )
@@ -1572,7 +1875,11 @@ def get_argumentparser() -> argparse.ArgumentParser:
 """,
     )
     parser.add_argument(
-        "-s", "--case-sensitive", action="store_true", dest="case_sensitive", help="searches are case sensitive"
+        "-s",
+        "--case-sensitive",
+        action="store_true",
+        dest="case_sensitive",
+        help="searches are case sensitive",
     )
     parser.add_argument(
         "-X",
@@ -1611,7 +1918,13 @@ def get_argumentparser() -> argparse.ArgumentParser:
         default=",".join(DEFAULT_MENU_CURSOR_STYLE),
         help='style for the menu cursor as comma separated list (default: "%(default)s")',
     )
-    parser.add_argument("-C", "--no-cycle", action="store_false", dest="cycle", help="do not cycle the menu selection")
+    parser.add_argument(
+        "-C",
+        "--no-cycle",
+        action="store_false",
+        dest="cycle",
+        help="do not cycle the menu selection",
+    )
     parser.add_argument(
         "-E",
         "--no-exit-on-shortcut",
@@ -1659,7 +1972,9 @@ def get_argumentparser() -> argparse.ArgumentParser:
         action="store",
         dest="multi_select_keys",
         default=",".join(DEFAULT_MULTI_SELECT_KEYS),
-        help=('key for toggling a selected item in a multi-selection (default: "%(default)s", '),
+        help=(
+            'key for toggling a selected item in a multi-selection (default: "%(default)s", '
+        ),
     )
     parser.add_argument(
         "--multi-select-no-select-on-accept",
@@ -1674,7 +1989,9 @@ def get_argumentparser() -> argparse.ArgumentParser:
         "--multi-select-empty-ok",
         action="store_true",
         dest="multi_select_empty_ok",
-        help=("when used together with --multi-select-no-select-on-accept allows returning no selection at all"),
+        help=(
+            "when used together with --multi-select-no-select-on-accept allows returning no selection at all"
+        ),
     )
     parser.add_argument(
         "-p",
@@ -1818,11 +2135,19 @@ def get_argumentparser() -> argparse.ArgumentParser:
             'Multiple indices are separated by ";".'
         ),
     )
-    parser.add_argument("-t", "--title", action="store", dest="title", help="menu title")
     parser.add_argument(
-        "-V", "--version", action="store_true", dest="print_version", help="print the version number and exit"
+        "-t", "--title", action="store", dest="title", help="menu title"
     )
-    parser.add_argument("entries", action="store", nargs="*", help="the menu entries to show")
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="store_true",
+        dest="print_version",
+        help="print the version number and exit",
+    )
+    parser.add_argument(
+        "entries", action="store", nargs="*", help="the menu entries to show"
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "-r",
@@ -1843,7 +2168,9 @@ def get_argumentparser() -> argparse.ArgumentParser:
 
 def parse_arguments() -> AttributeDict:
     parser = get_argumentparser()
-    args = AttributeDict({key: value for key, value in vars(parser.parse_args()).items()})
+    args = AttributeDict(
+        {key: value for key, value in vars(parser.parse_args()).items()}
+    )
     if not args.print_version and not args.entries:
         raise NoMenuEntriesError("No menu entries given!")
     if args.skip_empty_entries:
@@ -1861,11 +2188,15 @@ def parse_arguments() -> AttributeDict:
     else:
         args.search_highlight_style = None
     if args.shortcut_key_highlight_style != "":
-        args.shortcut_key_highlight_style = tuple(args.shortcut_key_highlight_style.split(","))
+        args.shortcut_key_highlight_style = tuple(
+            args.shortcut_key_highlight_style.split(",")
+        )
     else:
         args.shortcut_key_highlight_style = None
     if args.shortcut_brackets_highlight_style != "":
-        args.shortcut_brackets_highlight_style = tuple(args.shortcut_brackets_highlight_style.split(","))
+        args.shortcut_brackets_highlight_style = tuple(
+            args.shortcut_brackets_highlight_style.split(",")
+        )
     else:
         args.shortcut_brackets_highlight_style = None
     if args.status_bar_style != "":
@@ -1873,11 +2204,15 @@ def parse_arguments() -> AttributeDict:
     else:
         args.status_bar_style = None
     if args.multi_select_cursor_brackets_style != "":
-        args.multi_select_cursor_brackets_style = tuple(args.multi_select_cursor_brackets_style.split(","))
+        args.multi_select_cursor_brackets_style = tuple(
+            args.multi_select_cursor_brackets_style.split(",")
+        )
     else:
         args.multi_select_cursor_brackets_style = None
     if args.multi_select_cursor_style != "":
-        args.multi_select_cursor_style = tuple(args.multi_select_cursor_style.split(","))
+        args.multi_select_cursor_style = tuple(
+            args.multi_select_cursor_style.split(",")
+        )
     else:
         args.multi_select_cursor_style = None
     if args.multi_select_keys != "":
@@ -1950,7 +2285,11 @@ def main() -> None:
             status_bar_style=args.status_bar_style,
             title=args.title,
         )
-    except (InvalidParameterCombinationError, InvalidStyleError, UnknownMenuEntryError) as e:
+    except (
+        InvalidParameterCombinationError,
+        InvalidStyleError,
+        UnknownMenuEntryError,
+    ) as e:
         print(str(e), file=sys.stderr)
         sys.exit(0)
     chosen_entries = terminal_menu.show()
