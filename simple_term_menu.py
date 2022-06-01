@@ -29,8 +29,7 @@ from typing import (
     Set,
     TextIO,
     Tuple,
-    Union,
-    cast,
+    Union, cast,
 )
 
 try:
@@ -59,7 +58,7 @@ DEFAULT_MULTI_SELECT = False
 DEFAULT_MULTI_SELECT_CURSOR = "[*] "
 DEFAULT_MULTI_SELECT_CURSOR_BRACKETS_STYLE = ("fg_gray",)
 DEFAULT_MULTI_SELECT_CURSOR_STYLE = ("fg_yellow", "bold")
-DEFAULT_MULTI_SELECT_KEYS = (" ", "tab")
+DEFAULT_MULTI_SELECT_KEYS = ("tab",)
 DEFAULT_MULTI_SELECT_SELECT_ON_ACCEPT = True
 DEFAULT_PREVIEW_BORDER = True
 DEFAULT_PREVIEW_SIZE = 0.25
@@ -166,30 +165,43 @@ class TerminalMenu:
             self._case_sensitive = case_senitive
             self._show_search_hint = show_search_hint
             self._matches = []  # type: List[Tuple[int, Match[str]]]
-            self._search_regex = None  # type: Optional[Pattern[str]]
             self._change_callback = None  # type: Optional[Callable[[], None]]
+            self._search_regexes = []  # type: List[Pattern[str]]
 
             # Use the property setter since it has some more logic
             self.search_text = search_text
 
         def _update_matches(self) -> None:
-            if self._search_regex is None:
+            if not self._search_regexes:
                 self._matches = []
             else:
-                matches = []
-                for i, menu_entry in enumerate(self._menu_entries):
-                    match_obj = self._search_regex.search(menu_entry)
-                    if match_obj:
-                        matches.append((i, match_obj))
-                self._matches = matches
+                entries = self._menu_entries
+
+                for regex in self._search_regexes:
+                    entries = self._filter_with_regex(regex, entries)
+
+                self._matches = entries
+
+        @staticmethod
+        def _filter_with_regex(regex, entries):
+            """
+            :param entries: Either list of strings or regex matches.
+            """
+            matches = []
+            for i, menu_entry in enumerate(entries):
+                if isinstance(menu_entry, str):
+                    match_obj = regex.search(menu_entry)
+                elif isinstance(menu_entry, tuple):  # filtering regexes
+                    match_obj = regex.search(menu_entry[1].string)
+                    i = menu_entry[0]  # use original
+
+                if match_obj:
+                    matches.append((i, match_obj))
+            return matches
 
         @property
         def matches(self) -> List[Tuple[int, Match[str]]]:
             return list(self._matches)
-
-        @property
-        def search_regex(self) -> Optional[Pattern[str]]:
-            return self._search_regex
 
         @property
         def search_text(self) -> Optional[str]:
@@ -199,15 +211,24 @@ class TerminalMenu:
         def search_text(self, text: Optional[str]) -> None:
             self._search_text = text
             search_text = self._search_text
-            self._search_regex = None
-            while search_text and self._search_regex is None:
-                try:
-                    self._search_regex = re.compile(
-                        search_text,
-                        flags=re.IGNORECASE if not self._case_sensitive else 0,
-                    )
-                except re.error:
-                    search_text = search_text[:-1]
+
+            self._search_regexes = []
+
+            if search_text:
+                for search_text_part in search_text.split(" "):
+                    if search_text_part:
+                        while search_text_part:
+                            try:
+                                compiled_regex = re.compile(
+                                        search_text_part,
+                                        flags=re.IGNORECASE if not self._case_sensitive else 0,
+                                    )
+                                break
+                            except:
+                                search_text_part = search_text_part[:-1]
+
+                        self._search_regexes.append(compiled_regex)
+
             self._update_matches()
             if self._change_callback:
                 self._change_callback()
@@ -239,6 +260,7 @@ class TerminalMenu:
     class Selection:
         def __init__(
             self,
+            search: "TerminalMenu.Search",
             num_menu_entries: int,
             preselected_indices: Optional[Iterable[int]] = None,
         ):
@@ -246,6 +268,7 @@ class TerminalMenu:
             self._selected_menu_indices = (
                 set(preselected_indices) if preselected_indices is not None else set()
             )
+            self._search = search
 
         def clear(self) -> None:
             self._selected_menu_indices.clear()
@@ -259,6 +282,15 @@ class TerminalMenu:
         def toggle(self, menu_index: int) -> bool:
             self[menu_index] = menu_index not in self._selected_menu_indices
             return self[menu_index]
+
+        def toggle_all_found(self) -> None:
+            if not self._search._matches:  # if there is nothing selected
+                for idx in range(self._num_menu_entries):
+                    self.toggle(idx)
+                return
+
+            for (idx, _) in self._search._matches:
+                self.toggle(idx)
 
         def __bool__(self) -> bool:
             return bool(self._selected_menu_indices)
@@ -567,6 +599,7 @@ class TerminalMenu:
         "backspace": "",  # Is assigned later in `self._init_backspace_control_character`
         "ctrl-j": "\012",
         "ctrl-k": "\013",
+        "ctrl-a": "\001",
         "enter": "\015",
         "escape": "\033",
         "tab": "\t",
@@ -820,7 +853,9 @@ class TerminalMenu:
             show_search_hint=self._show_search_hint,
         )
         self._selection = self.Selection(
-            len(self._menu_entries), self._preselected_indices
+            self._search,
+            len(self._menu_entries),
+            self._preselected_indices,
         )
         self._viewport = self.Viewport(
             len(self._menu_entries),
@@ -1735,18 +1770,20 @@ class TerminalMenu:
         try:
             init_signal_handling()
             menu_action_to_keys = {
-                "menu_up": set(("up", "ctrl-k", "k")),
-                "menu_down": set(("down", "ctrl-j", "j")),
+                "menu_up": {"up", "ctrl-k", "k"},
+                "menu_down": {"down", "ctrl-j", "j"},
                 "accept": set(self._accept_keys),
                 "multi_select": set(self._multi_select_keys),
-                "quit": set(("escape", "q")),
-                "search_start": set((self._search_key,)),
-                "backspace": set(("backspace",)),
+                "multi_select_all": {"ctrl-a"},
+                "quit": {"escape", "q"},
+                "search_start": {self._search_key},
+                "backspace": {"backspace"},
             }  # type: Dict[str, Set[Optional[str]]]
             while True:
                 self._paint_menu()
                 current_menu_action_to_keys = copy.deepcopy(menu_action_to_keys)
                 next_key = self._read_next_key(ignore_case=False)
+
                 if self._search or self._search_key is None:
                     remove_letter_keys(current_menu_action_to_keys)
                 else:
@@ -1775,6 +1812,11 @@ class TerminalMenu:
                 ):
                     if self._view.active_menu_index is not None:
                         self._selection.toggle(self._view.active_menu_index)
+                elif (
+                    self._multi_select
+                    and next_key in current_menu_action_to_keys["multi_select_all"]
+                ):
+                    self._selection.toggle_all_found()
                 elif next_key in current_menu_action_to_keys["accept"]:
                     if self._view.active_menu_index is not None:
                         if self._multi_select_select_on_accept or (
@@ -1794,7 +1836,7 @@ class TerminalMenu:
                         self._search_key is None and next_key == DEFAULT_SEARCH_KEY
                     ):
                         self._search.search_text = ""
-                    elif self._search_key is None:
+                    elif self._search_key is None and next_key not in ("backspace",):
                         self._search.search_text = next_key
                 else:
                     assert self._search.search_text is not None
@@ -1809,7 +1851,9 @@ class TerminalMenu:
                     ):
                         # Only append `next_key` if it is a printable character and the first character is not the
                         # `search_start` key
-                        self._search.search_text += next_key
+                        if len(next_key) == 1:
+                            self._search.search_text += next_key
+
         except KeyboardInterrupt:
             menu_was_interrupted = True
         finally:
