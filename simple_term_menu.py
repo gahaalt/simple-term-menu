@@ -168,6 +168,8 @@ class TerminalMenu:
             self._change_callback = None  # type: Optional[Callable[[], None]]
             self._search_regexes = []  # type: List[Pattern[str]]
 
+            self.is_result_empty = False
+
             # Use the property setter since it has some more logic
             self.search_text = search_text
 
@@ -181,6 +183,7 @@ class TerminalMenu:
                     entries = self._filter_with_regex(regex, entries)
 
                 self._matches = entries
+                self.is_result_empty = len(entries) == 0
 
         @staticmethod
         def _filter_with_regex(regex, entries):
@@ -220,9 +223,9 @@ class TerminalMenu:
                         while search_text_part:
                             try:
                                 compiled_regex = re.compile(
-                                        search_text_part,
-                                        flags=re.IGNORECASE if not self._case_sensitive else 0,
-                                    )
+                                    search_text_part,
+                                    flags=re.IGNORECASE if not self._case_sensitive else 0,
+                                )
                                 break
                             except:
                                 search_text_part = search_text_part[:-1]
@@ -1843,6 +1846,7 @@ class TerminalMenu:
                     if next_key in ("backspace",):
                         if self._search.search_text != "":
                             self._search.search_text = self._search.search_text[:-1]
+                            self._search.is_result_empty = False # unblock entering characters
                         else:
                             self._search.search_text = None
                     elif wcswidth(next_key) >= 0 and not (
@@ -1851,7 +1855,7 @@ class TerminalMenu:
                     ):
                         # Only append `next_key` if it is a printable character and the first character is not the
                         # `search_start` key
-                        if len(next_key) == 1:
+                        if len(next_key) == 1 and not self._search.is_result_empty:
                             self._search.search_text += next_key
 
         except KeyboardInterrupt:
