@@ -1190,11 +1190,9 @@ class TerminalMenu:
                     )
                 else:
                     return (
-                        "Press {} to select, "
-                        "{} to select all, "
-                        "{} to toggle all, "
+                        "Press {}, {} or {} to select, "
                         "{} to see selected, "
-                        "<ctrl-backspace> to clear search and "
+                        "<ctrl-backspace> to clear "
                         "{} to {}accept".format(
                             get_string_from_keys(self._multi_select_keys),
                             get_string_from_keys(self._multi_select_all_keys),
