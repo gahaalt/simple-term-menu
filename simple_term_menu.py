@@ -62,6 +62,7 @@ DEFAULT_MULTI_SELECT_CURSOR_STYLE = ("fg_yellow", "bold")
 DEFAULT_MULTI_SELECT_KEYS = ("tab",)
 DEFAULT_MULTI_SELECT_ALL_KEYS = ("ctrl-a",)
 DEFAULT_MULTI_TOGGLE_ALL_KEYS = ("ctrl-t",)
+DEFAULT_FOCUS_ON_SELECTED_KEYS = ("ctrl-f",)
 DEFAULT_MULTI_SELECT_SELECT_ON_ACCEPT = True
 DEFAULT_PREVIEW_BORDER = True
 DEFAULT_PREVIEW_SIZE = 0.25
@@ -80,6 +81,7 @@ DEFAULT_STATUS_BAR_BELOW_PREVIEW = False
 DEFAULT_STATUS_BAR_STYLE = ("fg_black", "bg_green")
 DEFAULT_SEARCH_BAR_STYLE = ("fg_black", "bg_green", "bold")
 MIN_VISIBLE_MENU_ENTRIES_COUNT = 3
+CTRL_BACKSPACE_KEY = "cursor_left"
 
 
 class InvalidParameterCombinationError(Exception):
@@ -161,7 +163,7 @@ class TerminalMenu:
     class Search:
         def __init__(
             self,
-            menu_entries: Iterable[str],
+            menu_entries: List[str],
             search_text: Optional[str] = None,
             case_senitive: bool = False,
             show_search_hint: bool = False,
@@ -178,6 +180,10 @@ class TerminalMenu:
             self.search_text = search_text
 
         def _update_matches(self) -> None:
+            if self._search_text and not self._search_regexes:
+                # This case happens when user enters regex as the first thing
+                self._search_regexes = [re.compile(".*")]
+
             if not self._search_regexes:
                 self._matches = []
             else:
@@ -200,7 +206,8 @@ class TerminalMenu:
                 elif isinstance(menu_entry, tuple):  # filtering regexes
                     match_obj = regex.search(menu_entry[1].string)
                     i = menu_entry[0]  # use original
-
+                else:
+                    raise UserWarning
                 if match_obj:
                     matches.append((i, match_obj))
             return matches
@@ -233,11 +240,10 @@ class TerminalMenu:
                                     if not self._case_sensitive
                                     else 0,
                                 )
+                                self._search_regexes.append(compiled_regex)
                                 break
                             except:
                                 search_text_part = search_text_part[:-1]
-
-                        self._search_regexes.append(compiled_regex)
 
             self._update_matches()
             if self._change_callback:
@@ -315,6 +321,12 @@ class TerminalMenu:
 
         def select_all_visible(self) -> None:
             self.apply_to_all_visible(self.add)
+
+        def show_only_selected(self):
+            selected_strs = []
+            for idx in self._selected_menu_indices:
+                selected_strs.append(self._search._menu_entries[idx])
+            self._search.search_text = "(" + "|".join(selected_strs) + ")"
 
         def __bool__(self) -> bool:
             return bool(self._selected_menu_indices)
@@ -413,7 +425,8 @@ class TerminalMenu:
 
         def move_cursor_and_viewport_down(self, scroll_num) -> None:
             lines_missing_to_bottom = max(
-                self._search.get_number_of_visible_entries - 1
+                self._search.get_number_of_visible_entries
+                - 1
                 - self._viewport._viewport[1],
                 0,
             )
@@ -701,6 +714,9 @@ class TerminalMenu:
         multi_select_keys: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_KEYS,
         multi_select_all_keys: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_ALL_KEYS,
         multi_toggle_all_keys: Optional[Iterable[str]] = DEFAULT_MULTI_TOGGLE_ALL_KEYS,
+        focus_on_selected_keys: Optional[
+            Iterable[str]
+        ] = DEFAULT_FOCUS_ON_SELECTED_KEYS,
         multi_select_select_on_accept: bool = DEFAULT_MULTI_SELECT_SELECT_ON_ACCEPT,
         preselected_entries: Optional[Iterable[Union[str, int]]] = None,
         preview_border: bool = DEFAULT_PREVIEW_BORDER,
@@ -859,6 +875,9 @@ class TerminalMenu:
         )
         self._multi_toggle_all_keys = (
             tuple(multi_toggle_all_keys) if multi_toggle_all_keys is not None else ()
+        )
+        self._focus_on_selected_keys = (
+            tuple(focus_on_selected_keys) if focus_on_selected_keys is not None else ()
         )
         self._multi_select_select_on_accept = multi_select_select_on_accept
         if preselected_entries and not self._multi_select:
@@ -1171,13 +1190,16 @@ class TerminalMenu:
                     )
                 else:
                     return (
-                        "Press {} to toggle selected, "
+                        "Press {} to select, "
                         "{} to select all, "
-                        "{} to toggle all and "
+                        "{} to toggle all, "
+                        "{} to see selected, "
+                        "<ctrl-backspace> to clear search and "
                         "{} to {}accept".format(
                             get_string_from_keys(self._multi_select_keys),
                             get_string_from_keys(self._multi_select_all_keys),
                             get_string_from_keys(self._multi_toggle_all_keys),
+                            get_string_from_keys(self._focus_on_selected_keys),
                             get_string_from_keys(self._accept_keys),
                             "select and "
                             if self._multi_select_select_on_accept
@@ -1867,6 +1889,9 @@ class TerminalMenu:
                 "menu_down": {"down", "ctrl-j", "j"},
                 "menu_half_screen_up": {"ctrl-u"},
                 "menu_half_screen_down": {"ctrl-d"},
+                "focus_on_selected": set(self._focus_on_selected_keys),
+                "clear_search": {CTRL_BACKSPACE_KEY},
+                "menu_half_screen_down": {"ctrl-d"},
                 "accept": set(self._accept_keys),
                 "multi_select": set(self._multi_select_keys),
                 "multi_select_all": set(self._multi_select_all_keys),
@@ -1884,7 +1909,7 @@ class TerminalMenu:
                 if (
                     self._search
                     and self._search.get_number_of_visible_entries == 0
-                    and next_key not in ("backspace",)
+                    and next_key not in ("backspace", CTRL_BACKSPACE_KEY)
                 ):
                     # Do not allow typing anymore if search is empty
                     # For easier correction of mistyped words
@@ -1950,6 +1975,19 @@ class TerminalMenu:
                         break
                     else:
                         self._search.search_text = None
+
+                elif self._search and next_key in (CTRL_BACKSPACE_KEY,):  # clear search
+                    self._search.search_text = None
+
+                elif (
+                    self._multi_select
+                    and next_key in current_menu_action_to_keys["focus_on_selected"]
+                ):
+                    if self._selection:
+                        self._selection.show_only_selected()
+                    else:
+                        pass
+
                 elif not self._search:
                     if next_key in current_menu_action_to_keys["search_start"] or (
                         self._search_key is None and next_key == DEFAULT_SEARCH_KEY
