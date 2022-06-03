@@ -50,7 +50,7 @@ __version__ = ".".join(map(str, __version_info__))
 DEFAULT_ACCEPT_KEYS = ("enter",)
 DEFAULT_CLEAR_MENU_ON_EXIT = True
 DEFAULT_CLEAR_SCREEN = False
-DEFAULT_CYCLE_CURSOR = True
+DEFAULT_CYCLE_CURSOR = False
 DEFAULT_EXIT_ON_SHORTCUT = True
 DEFAULT_MENU_CURSOR = "> "
 DEFAULT_MENU_CURSOR_STYLE = ("fg_red", "bold")
@@ -61,6 +61,7 @@ DEFAULT_MULTI_SELECT_CURSOR_BRACKETS_STYLE = ("fg_gray",)
 DEFAULT_MULTI_SELECT_CURSOR_STYLE = ("fg_yellow", "bold")
 DEFAULT_MULTI_SELECT_KEYS = ("tab",)
 DEFAULT_MULTI_SELECT_ALL_KEYS = ("ctrl-a",)
+DEFAULT_MULTI_TOGGLE_ALL_KEYS = ("ctrl-t",)
 DEFAULT_MULTI_SELECT_SELECT_ON_ACCEPT = True
 DEFAULT_PREVIEW_BORDER = True
 DEFAULT_PREVIEW_SIZE = 0.25
@@ -243,7 +244,7 @@ class TerminalMenu:
                 self._change_callback()
 
         @property
-        def get_number_of_matches(self) -> int:
+        def get_number_of_visible_entries(self) -> int:
             if not self._search_text:
                 return self._num_menu_entries
             else:
@@ -300,14 +301,20 @@ class TerminalMenu:
             self[menu_index] = menu_index not in self._selected_menu_indices
             return self[menu_index]
 
-        def toggle_all_found(self) -> None:
+        def apply_to_all_visible(self, func):
             if not self._search._matches:  # if there is nothing selected
                 for idx in range(self._num_menu_entries):
-                    self.toggle(idx)
+                    func(idx)
                 return
 
             for (idx, _) in self._search._matches:
-                self.toggle(idx)
+                func(idx)
+
+        def toggle_all_visible(self) -> None:
+            self.apply_to_all_visible(self.toggle)
+
+        def select_all_visible(self) -> None:
+            self.apply_to_all_visible(self.add)
 
         def __bool__(self) -> bool:
             return bool(self._selected_menu_indices)
@@ -338,7 +345,7 @@ class TerminalMenu:
             search: "TerminalMenu.Search",
             selection: "TerminalMenu.Selection",
             viewport: "TerminalMenu.Viewport",
-            cycle_cursor: bool = True,
+            cycle_cursor: bool,
             skip_indices: List[int] = [],
         ):
             self._menu_entries = list(menu_entries)
@@ -371,7 +378,7 @@ class TerminalMenu:
             self._viewport.search_lines_count = self._search.occupied_lines_count
             self._viewport.keep_visible(self._active_displayed_index)
 
-        def increment_active_index(self) -> None:
+        def increment_active_index(self, keep_cursor_visible=True) -> None:
             if self._active_displayed_index is not None:
                 if self._active_displayed_index + 1 < len(
                     self._displayed_index_to_menu_index
@@ -379,12 +386,13 @@ class TerminalMenu:
                     self._active_displayed_index += 1
                 elif self._cycle_cursor:
                     self._active_displayed_index = 0
-                self._viewport.keep_visible(self._active_displayed_index)
+                if keep_cursor_visible:
+                    self._viewport.keep_visible(self._active_displayed_index)
 
             if self._active_displayed_index in self._skip_indices:
                 self.increment_active_index()
 
-        def decrement_active_index(self) -> None:
+        def decrement_active_index(self, keep_cursor_visible=True) -> None:
             if self._active_displayed_index is not None:
                 if self._active_displayed_index > 0:
                     self._active_displayed_index -= 1
@@ -392,10 +400,28 @@ class TerminalMenu:
                     self._active_displayed_index = (
                         len(self._displayed_index_to_menu_index) - 1
                     )
-                self._viewport.keep_visible(self._active_displayed_index)
+                if keep_cursor_visible:
+                    self._viewport.keep_visible(self._active_displayed_index)
 
             if self._active_displayed_index in self._skip_indices:
                 self.decrement_active_index()
+
+        def move_cursor_and_viewport_up(self, scroll_num) -> None:
+            for _ in range(scroll_num):
+                self.decrement_active_index(keep_cursor_visible=False)
+            self._viewport.scroll(-scroll_num)
+
+        def move_cursor_and_viewport_down(self, scroll_num) -> None:
+            lines_missing_to_bottom = max(
+                self._search.get_number_of_visible_entries - 1
+                - self._viewport._viewport[1],
+                0,
+            )
+            capped_scroll_num = min(lines_missing_to_bottom, scroll_num)
+
+            for _ in range(scroll_num):
+                self.increment_active_index(keep_cursor_visible=False)
+            self._viewport.scroll(capped_scroll_num)
 
         def is_visible(self, menu_index: int) -> bool:
             return menu_index in self._menu_index_to_displayed_index and (
@@ -414,6 +440,13 @@ class TerminalMenu:
 
         def convert_displayed_index_to_menu_index(self, displayed_index: int) -> int:
             return self._displayed_index_to_menu_index[displayed_index]
+
+        @property
+        def number_of_visible_items(self) -> int:
+            if self._search.search_text:
+                return self._search.get_number_of_visible_entries
+            else:
+                return len(self._menu_entries)
 
         @property
         def active_menu_index(self) -> Optional[int]:
@@ -518,6 +551,17 @@ class TerminalMenu:
                 self._viewport = (lower_index, upper_index)
                 self._num_lines = num_lines
 
+        def scroll(self, n_lines):
+            if self._viewport[0] + n_lines < 0:
+                n_lines = -self._viewport[0]
+            self._viewport = (self._viewport[0] + n_lines, self._viewport[1] + n_lines)
+
+        def cap_bottom(self, bottom_line):
+            view_num_lines = self._calculate_num_lines()
+            if self._viewport[1] > view_num_lines and self._viewport[1] > bottom_line:
+                diff = self._viewport[1] - self._viewport[0]
+                self._viewport = (bottom_line - diff, bottom_line)
+
         @property
         def lower_index(self) -> int:
             return self._viewport[0]
@@ -613,10 +657,17 @@ class TerminalMenu:
         "up": "kcuu1",
     }
     _name_to_control_character = {
+        # ASCII TABLES:
+        # https://www.sciencebuddies.org/science-fair-projects/references/ascii-table
+        # https://www.physics.udel.edu/~watson/scen103/ascii.html
         "backspace": "",  # Is assigned later in `self._init_backspace_control_character`
+        "ctrl-a": "\001",
+        "ctrl-f": "\006",
         "ctrl-j": "\012",
         "ctrl-k": "\013",
-        "ctrl-a": "\001",
+        "ctrl-t": "\024",
+        "ctrl-u": "\025",
+        "ctrl-d": "\004",
         "enter": "\015",
         "escape": "\033",
         "tab": "\t",
@@ -649,6 +700,7 @@ class TerminalMenu:
         multi_select_empty_ok: bool = False,
         multi_select_keys: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_KEYS,
         multi_select_all_keys: Optional[Iterable[str]] = DEFAULT_MULTI_SELECT_ALL_KEYS,
+        multi_toggle_all_keys: Optional[Iterable[str]] = DEFAULT_MULTI_TOGGLE_ALL_KEYS,
         multi_select_select_on_accept: bool = DEFAULT_MULTI_SELECT_SELECT_ON_ACCEPT,
         preselected_entries: Optional[Iterable[Union[str, int]]] = None,
         preview_border: bool = DEFAULT_PREVIEW_BORDER,
@@ -804,6 +856,9 @@ class TerminalMenu:
         )
         self._multi_select_all_keys = (
             tuple(multi_select_all_keys) if multi_select_all_keys is not None else ()
+        )
+        self._multi_toggle_all_keys = (
+            tuple(multi_toggle_all_keys) if multi_toggle_all_keys is not None else ()
         )
         self._multi_select_select_on_accept = multi_select_select_on_accept
         if preselected_entries and not self._multi_select:
@@ -1109,29 +1164,32 @@ class TerminalMenu:
                     )
                     return keys_string
 
-                accept_keys_string = get_string_from_keys(self._accept_keys)
-                multi_select_keys_string = get_string_from_keys(self._multi_select_keys)
-                multi_select_all_keys_string = get_string_from_keys(
-                    self._multi_select_all_keys
-                )
                 if self._show_multi_select_hint_text is not None:
                     return self._show_multi_select_hint_text.format(
-                        multi_select_keys=multi_select_keys_string,
-                        accept_keys=accept_keys_string,
+                        multi_select_keys=get_string_from_keys(self._multi_select_keys),
+                        accept_keys=get_string_from_keys(self._accept_keys),
                     )
                 else:
-                    return "Press {} to toggle selected, {} to toggle all and {} to {}accept".format(
-                        multi_select_keys_string,
-                        multi_select_all_keys_string,
-                        accept_keys_string,
-                        "select and " if self._multi_select_select_on_accept else "",
+                    return (
+                        "Press {} to toggle selected, "
+                        "{} to select all, "
+                        "{} to toggle all and "
+                        "{} to {}accept".format(
+                            get_string_from_keys(self._multi_select_keys),
+                            get_string_from_keys(self._multi_select_all_keys),
+                            get_string_from_keys(self._multi_toggle_all_keys),
+                            get_string_from_keys(self._accept_keys),
+                            "select and "
+                            if self._multi_select_select_on_accept
+                            else "",
+                        )
                     )
 
             status_bar_lines = tuple()
 
             if self._show_results_count_in_status_bar:
                 status_bar_lines += (
-                    f"Visible: {self._search.get_number_of_matches} / {self._search._num_menu_entries}, "
+                    f"Visible: {self._search.get_number_of_visible_entries} / {self._search._num_menu_entries}, "
                     f"selected: {len(self._selection.selected_menu_indices)} / {self._search._num_menu_entries}",
                 )
 
@@ -1807,9 +1865,12 @@ class TerminalMenu:
             menu_action_to_keys = {
                 "menu_up": {"up", "ctrl-k", "k"},
                 "menu_down": {"down", "ctrl-j", "j"},
+                "menu_half_screen_up": {"ctrl-u"},
+                "menu_half_screen_down": {"ctrl-d"},
                 "accept": set(self._accept_keys),
                 "multi_select": set(self._multi_select_keys),
                 "multi_select_all": set(self._multi_select_all_keys),
+                "multi_toggle_all": set(self._multi_toggle_all_keys),
                 "quit": {"escape", "q"},
                 "search_start": {self._search_key},
                 "backspace": {"backspace"},
@@ -1822,7 +1883,7 @@ class TerminalMenu:
 
                 if (
                     self._search
-                    and self._search.get_number_of_matches == 0
+                    and self._search.get_number_of_visible_entries == 0
                     and next_key not in ("backspace",)
                 ):
                     # Do not allow typing anymore if search is empty
@@ -1851,6 +1912,14 @@ class TerminalMenu:
                     self._view.decrement_active_index()
                 elif next_key in current_menu_action_to_keys["menu_down"]:
                     self._view.increment_active_index()
+                elif next_key in current_menu_action_to_keys["menu_half_screen_up"]:
+                    self._view.move_cursor_and_viewport_up(
+                        self._viewport._num_lines // 2
+                    )
+                elif next_key in current_menu_action_to_keys["menu_half_screen_down"]:
+                    self._view.move_cursor_and_viewport_down(
+                        self._viewport._num_lines // 2
+                    )
                 elif (
                     self._multi_select
                     and next_key in current_menu_action_to_keys["multi_select"]
@@ -1861,7 +1930,12 @@ class TerminalMenu:
                     self._multi_select
                     and next_key in current_menu_action_to_keys["multi_select_all"]
                 ):
-                    self._selection.toggle_all_found()
+                    self._selection.select_all_visible()
+                elif (
+                    self._multi_select
+                    and next_key in current_menu_action_to_keys["multi_toggle_all"]
+                ):
+                    self._selection.toggle_all_visible()
                 elif next_key in current_menu_action_to_keys["accept"]:
                     if self._view.active_menu_index is not None:
                         if self._multi_select_select_on_accept or (
