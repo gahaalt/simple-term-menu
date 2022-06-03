@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import copy
-import ctypes
-import io
+import copy import ctypes import io
 import locale
 import os
 import platform
@@ -81,6 +79,8 @@ DEFAULT_STATUS_BAR_BELOW_PREVIEW = False
 DEFAULT_STATUS_BAR_STYLE = ("fg_black", "bg_green")
 DEFAULT_SEARCH_BAR_STYLE = ("fg_black", "bg_green", "bold")
 MIN_VISIBLE_MENU_ENTRIES_COUNT = 3
+
+BUGGY_STRINGS = {"cursor_left"} # they might appear if user enters key combination
 
 
 class InvalidParameterCombinationError(Exception):
@@ -1902,13 +1902,16 @@ class TerminalMenu:
                 current_menu_action_to_keys = copy.deepcopy(menu_action_to_keys)
                 next_key = self._read_next_key(ignore_case=False)
 
-                if (
-                    self._search
-                    and self._search.get_number_of_visible_entries == 0
-                    and next_key not in ("backspace",)
-                ):
-                    # Do not allow typing anymore if search is empty
-                    # For easier correction of mistyped words
+                # if (
+                #     self._search
+                #     and self._search.get_number_of_visible_entries == 0
+                #     and next_key not in ("backspace",)
+                # ):
+                #     # Do not allow typing anymore if search is empty
+                #     # For easier correction of mistyped words
+                #     continue
+
+                if next_key in BUGGY_STRINGS:
                     continue
 
                 if self._search or self._search_key is None:
@@ -1990,7 +1993,7 @@ class TerminalMenu:
                 else:
                     assert self._search.search_text is not None
                     if next_key in ("backspace",):
-                        if self._search.search_text != "":
+                        if len(self._search.search_text) > 1:
                             self._search.search_text = self._search.search_text[:-1]
                         else:
                             self._search.search_text = None
@@ -1998,9 +2001,11 @@ class TerminalMenu:
                         next_key in current_menu_action_to_keys["search_start"]
                         and self._search.search_text == ""
                     ):
-                        # Only append `next_key` if it is a printable character and the first character is not the
-                        # `search_start` key
-                        self._search.search_text += next_key
+                        # Only append `next_key` if it is a printable character
+                        # and the first character is not the `search_start` key
+                        if len(self._search.matches) > 0:
+                            # block typing if there are no matches
+                            self._search.search_text += next_key
 
         except KeyboardInterrupt:
             menu_was_interrupted = True
