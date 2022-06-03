@@ -82,7 +82,7 @@ DEFAULT_STATUS_BAR_STYLE = ("fg_black", "bg_green")
 DEFAULT_SEARCH_BAR_STYLE = ("fg_black", "bg_green", "bold")
 MIN_VISIBLE_MENU_ENTRIES_COUNT = 3
 
-BUGGY_STRINGS = {"cursor_left"} # they might appear if user enters key combination
+BUGGY_STRINGS = {"cursor_left"}  # they might appear if user enters key combination
 
 
 class InvalidParameterCombinationError(Exception):
@@ -745,7 +745,7 @@ class TerminalMenu:
         status_bar: Optional[Union[str, Iterable[str], Callable[[str], str]]] = None,
         status_bar_below_preview: bool = DEFAULT_STATUS_BAR_BELOW_PREVIEW,
         status_bar_style: Optional[Iterable[str]] = DEFAULT_STATUS_BAR_STYLE,
-        show_results_count_in_status_bar: bool = True,
+        show_selection_info_in_status_bar: bool = False,
         title: Optional[Union[str, Iterable[str]]] = None,
     ):
         def extract_shortcuts_menu_entries_and_preview_arguments(
@@ -929,7 +929,7 @@ class TerminalMenu:
         self._status_bar_style = (
             tuple(status_bar_style) if status_bar_style is not None else ()
         )
-        self._show_results_count_in_status_bar = show_results_count_in_status_bar
+        self._show_results_count_in_status_bar = show_selection_info_in_status_bar
         self._title_lines = setup_title_or_status_bar_lines(
             title,
             show_shortcut_hints and not show_shortcut_hints_in_status_bar,
@@ -1373,7 +1373,6 @@ class TerminalMenu:
                     * self._codename_to_terminal_code["cursor_down"]
                 )
             apply_style(DEFAULT_SEARCH_BAR_STYLE)
-            len(self._search)
             if self._search:
                 assert self._search.search_text is not None
                 self._tty_out.write(
@@ -1407,6 +1406,7 @@ class TerminalMenu:
                     * self._codename_to_terminal_code["cursor_up"]
                 )
                 current_menu_block_displayed_height = 1
+            apply_style()
             return current_menu_block_displayed_height
 
         def print_status_bar(
@@ -2005,7 +2005,10 @@ class TerminalMenu:
                     ):
                         # Only append `next_key` if it is a printable character
                         # and the first character is not the `search_start` key
-                        if len(self._search.matches) > 0:
+                        if (
+                            len(self._search.matches) > 0
+                            or self._search.search_text == ""
+                        ):
                             # block typing if there are no matches
                             self._search.search_text += next_key
 
