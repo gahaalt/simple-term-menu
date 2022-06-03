@@ -81,7 +81,6 @@ DEFAULT_STATUS_BAR_BELOW_PREVIEW = False
 DEFAULT_STATUS_BAR_STYLE = ("fg_black", "bg_green")
 DEFAULT_SEARCH_BAR_STYLE = ("fg_black", "bg_green", "bold")
 MIN_VISIBLE_MENU_ENTRIES_COUNT = 3
-CTRL_BACKSPACE_KEY = "cursor_left"
 
 
 class InvalidParameterCombinationError(Exception):
@@ -1190,9 +1189,9 @@ class TerminalMenu:
                     )
                 else:
                     return (
-                        "Press {}, {} or {} to select, "
+                        "Press {}, {}, {} to select, "
                         "{} to see selected, "
-                        "<ctrl-backspace> to clear "
+                        "<esc> to clear search, "
                         "{} to {}accept".format(
                             get_string_from_keys(self._multi_select_keys),
                             get_string_from_keys(self._multi_select_all_keys),
@@ -1888,7 +1887,6 @@ class TerminalMenu:
                 "menu_half_screen_up": {"ctrl-u"},
                 "menu_half_screen_down": {"ctrl-d"},
                 "focus_on_selected": set(self._focus_on_selected_keys),
-                "clear_search": {CTRL_BACKSPACE_KEY},
                 "menu_half_screen_down": {"ctrl-d"},
                 "accept": set(self._accept_keys),
                 "multi_select": set(self._multi_select_keys),
@@ -1907,7 +1905,7 @@ class TerminalMenu:
                 if (
                     self._search
                     and self._search.get_number_of_visible_entries == 0
-                    and next_key not in ("backspace", CTRL_BACKSPACE_KEY)
+                    and next_key not in ("backspace",)
                 ):
                     # Do not allow typing anymore if search is empty
                     # For easier correction of mistyped words
@@ -1973,10 +1971,6 @@ class TerminalMenu:
                         break
                     else:
                         self._search.search_text = None
-
-                elif self._search and next_key in (CTRL_BACKSPACE_KEY,):  # clear search
-                    self._search.search_text = None
-
                 elif (
                     self._multi_select
                     and next_key in current_menu_action_to_keys["focus_on_selected"]
