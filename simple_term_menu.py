@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
-import copy import ctypes import io
+import copy
+import ctypes
+import io
 import locale
 import os
 import platform
