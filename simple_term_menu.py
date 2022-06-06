@@ -741,6 +741,7 @@ class TerminalMenu:
         show_search_hint_text: Optional[str] = None,
         show_shortcut_hints: bool = DEFAULT_SHOW_SHORTCUT_HINTS,
         show_shortcut_hints_in_status_bar: bool = DEFAULT_SHOW_SHORTCUT_HINTS_IN_STATUS_BAR,
+        exit_app_on_quit_key=False,
         skip_empty_entries: bool = False,
         status_bar: Optional[Union[str, Iterable[str], Callable[[str], str]]] = None,
         status_bar_below_preview: bool = DEFAULT_STATUS_BAR_BELOW_PREVIEW,
@@ -945,6 +946,7 @@ class TerminalMenu:
         self._paint_before_next_read = False
         self._previous_displayed_menu_height = None  # type: Optional[int]
         self._reading_next_key = False
+        self._exit_app_on_quit_key = exit_app_on_quit_key
         self._search = self.Search(
             self._menu_entries,
             case_senitive=self._search_case_sensitive,
@@ -1893,7 +1895,7 @@ class TerminalMenu:
                 "multi_select": set(self._multi_select_keys),
                 "multi_select_all": set(self._multi_select_all_keys),
                 "multi_toggle_all": set(self._multi_toggle_all_keys),
-                "quit": {"escape", "q"},
+                "quit": {"escape"},
                 "search_start": {self._search_key},
                 "backspace": {"backspace"},
             }  # type: Dict[str, Set[Optional[str]]]
@@ -1970,7 +1972,7 @@ class TerminalMenu:
                     self._chosen_accept_key = next_key
                     break
                 elif next_key in current_menu_action_to_keys["quit"]:
-                    if not self._search:
+                    if self._exit_app_on_quit_key and not self._search:
                         menu_was_interrupted = True
                         break
                     else:
