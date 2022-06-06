@@ -1889,7 +1889,6 @@ class TerminalMenu:
                 "menu_half_screen_up": {"ctrl-u"},
                 "menu_half_screen_down": {"ctrl-d"},
                 "focus_on_selected": set(self._focus_on_selected_keys),
-                "menu_half_screen_down": {"ctrl-d"},
                 "accept": set(self._accept_keys),
                 "multi_select": set(self._multi_select_keys),
                 "multi_select_all": set(self._multi_select_all_keys),
